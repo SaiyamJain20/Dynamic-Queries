@@ -89,7 +89,7 @@ import java.util.LinkedList;
 import java.io.DataOutputStream;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
-import com.qualcomm.qti.qa.ml.MLFQ.Model;
+import com.qualcomm.qti.qa.ml.MLFQ.MLFQ_Model;
 
 
 /** Interface to load SNPE model and provide predictions. */
@@ -126,7 +126,7 @@ public class QaClient {
     private static final int OllamaNo = 2;
     private static final int GeminiNo = 3;
 
-    private static Model prevModel;
+    private static MLFQ_Model prevMLFQModel;
     private static float prevCpuUsage = 0.0f;
     private static float prevBatteryConsumption = 0.0f;
 
@@ -139,6 +139,8 @@ public class QaClient {
     private MLFQ queues;
     public static boolean displayCache = false;
 
+    public static Mode prevMode = Mode.NAIVE;
+
     public QaClient(Context context) {
         this.context = context;
         this.featureConverter = new FeatureConverter(dic, DO_LOWER_CASE, MAX_QUERY_LEN, MAX_SEQ_LEN);
@@ -146,21 +148,21 @@ public class QaClient {
         this.queues = MLFQ.getInstance();
     }
 
-    private void promoteModel(Model model) {
+    private void promoteModel(MLFQ_Model model) {
         if(model.priority > PRIORITY_HIGH) {
             model.priority--;
             moveModelToQueue(model);
         }
     }
 
-    private void demoteModel(Model model) {
+    private void demoteModel(MLFQ_Model model) {
         if(model.priority < PRIORITY_LOW) {
             model.priority++;
             moveModelToQueue(model);
         }
     }
 
-    private void moveModelToQueue(Model model) {
+    private void moveModelToQueue(MLFQ_Model model) {
         queues.highPriorityQueue.remove(model);
         queues.midPriorityQueue.remove(model);
         queues.lowPriorityQueue.remove(model);
@@ -177,20 +179,20 @@ public class QaClient {
         }
     }
 
-    private Model getModelByNumber(int number) {
-        for(Model model : queues.highPriorityQueue) {
-            if(model.number == number) return model;
-        }
-        for(Model model : queues.midPriorityQueue) {
-            if (model.number == number) return model;
-        }
-        for(Model model : queues.lowPriorityQueue) {
-            if (model.number == number) return model;
-        }
-        return null;
-    }
+    // private MLFQ_Model getModelByNumber(int number) {
+    //     for(MLFQ_Model model : queues.highPriorityQueue) {
+    //         if(model.number == number) return model;
+    //     }
+    //     for(MLFQ_Model model : queues.midPriorityQueue) {
+    //         if (model.number == number) return model;
+    //     }
+    //     for(MLFQ_Model model : queues.lowPriorityQueue) {
+    //         if (model.number == number) return model;
+    //     }
+    //     return null;
+    // }
 
-    private Model selectModel() {
+    private MLFQ_Model selectModelMLFQ() {
         if(!queues.highPriorityQueue.isEmpty()) return queues.highPriorityQueue.peek();
         if(!queues.midPriorityQueue.isEmpty()) return queues.midPriorityQueue.peek();
         return queues.lowPriorityQueue.peek();
@@ -381,40 +383,36 @@ public class QaClient {
     public String getAnswer(String question, String content, double userFeedback, boolean firstQuestion) {
         int batteryLevel = 0;
         float temperature = 0.0f;
-
-        if(!firstQuestion) {
+        
+        if(!firstQuestion && prevMode == Mode.MLFQ) {
             batteryLevel = getBatteryLevel(context);
             temperature = getBatteryTemperature();
             int tokenCount = getTokenCount(content);
-            double prevScore = calculateScore(batteryLevel, prevBatteryConsumption, temperature, prevCpuUsage, prevModel.tokenFactor, userFeedback, prevModel.eFactor);
-
-            String message = "" + prevCpuUsage + " " + temperature + " " + batteryLevel + " " + prevModel.name + " "+ prevModel.type + " " + userFeedback + " " + prevScore + " ";
-            sendData(message);
-
+            double prevScore = calculateScore(batteryLevel, prevBatteryConsumption, temperature, prevCpuUsage, prevMLFQModel.tokenFactor, userFeedback, prevMLFQModel.eFactor);
 
             if(userFeedback == 0.0) {
-                prevModel.timesRejected++;
-                Log.d("rejection", prevModel.name + " has been rejected " + prevModel.timesRejected + " times.");
+                prevMLFQModel.timesRejected++;
+                Log.d("rejection", prevMLFQModel.name + " has been rejected " + prevMLFQModel.timesRejected + " times.");
             }
 
-            if(prevModel.timesRejected >= 3){
-                demoteModel(prevModel);
-                Log.d("prevModel ", prevModel.name + " demoted to priority " + prevModel.priority);
-                prevModel.executionCount = 0;
-                prevModel.timesRejected = 0;
+            if(prevMLFQModel.timesRejected >= 3){
+                demoteModel(prevMLFQModel);
+                Log.d("prevMLFQModel ", prevMLFQModel.name + " demoted to priority " + prevMLFQModel.priority);
+                prevMLFQModel.executionCount = 0;
+                prevMLFQModel.timesRejected = 0;
             }
-            if (prevScore < queues.emaScore - 0.1 && prevModel.priority != PRIORITY_LOW) {
-                demoteModel(prevModel);
-                Log.d("prevModel ", prevModel.name + " demoted to priority " + prevModel.priority);
-                prevModel.executionCount = 0;
+            if (prevScore < queues.emaScore - 0.1 && prevMLFQModel.priority != PRIORITY_LOW) {
+                demoteModel(prevMLFQModel);
+                Log.d("prevMLFQModel ", prevMLFQModel.name + " demoted to priority " + prevMLFQModel.priority);
+                prevMLFQModel.executionCount = 0;
             }
-            else if(prevScore > queues.emaScore + 0.1 && prevModel.priority != PRIORITY_HIGH && userFeedback > 0.0){
-                promoteModel(prevModel);
-                Log.d("prevModel ", prevModel.name + " promoted to priority " + prevModel.priority);
+            else if(prevScore > queues.emaScore + 0.1 && prevMLFQModel.priority != PRIORITY_HIGH && userFeedback > 0.0){
+                promoteModel(prevMLFQModel);
+                Log.d("prevMLFQModel ", prevMLFQModel.name + " promoted to priority " + prevMLFQModel.priority);
             }
-            else if(prevModel.executionCount > (3 - prevModel.priority) * agingFactor){
-                moveModelToQueue(prevModel);
-                Log.d("prevModel ", prevModel.name + " pushed back in queue.");
+            else if(prevMLFQModel.executionCount > (3 - prevMLFQModel.priority) * agingFactor){
+                moveModelToQueue(prevMLFQModel);
+                Log.d("prevMLFQModel ", prevMLFQModel.name + " pushed back in queue.");
             }
 
             Log.v("Metrics", "EMA:" + queues.emaScore + " Model scored:" + prevScore);
@@ -426,52 +424,83 @@ public class QaClient {
         }
 
         QaActivity.beforeTime = System.currentTimeMillis();
-        if (answerCache.hasAnswer(content, question)) {
-            String cachedAnswer = answerCache.getAnswer(content, question);
-            QaActivity.firstQuestion = true;
-            Log.d("QaClient", "Cache hit for question: " + question);
-            QaActivity.afterTime = System.currentTimeMillis();
-            final int finalBatteryLevel = batteryLevel;
-            final float finalCpuUsage = prevCpuUsage;
+        // if (answerCache.hasAnswer(content, question)) {
+        //     String cachedAnswer = answerCache.getAnswer(content, question);
+        //     QaActivity.firstQuestion = true;
+        //     Log.d("QaClient", "Cache hit for question: " + question);
+        //     QaActivity.afterTime = System.currentTimeMillis();
+        //     final int finalBatteryLevel = batteryLevel;
+        //     final float finalCpuUsage = prevCpuUsage;
 
-            if (qaActivityCallback != null) {
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    qaActivityCallback.onMetricsUpdated(finalBatteryLevel, finalCpuUsage, -1);
-                });
-            }
-            displayCache = true;
-            return cachedAnswer;
-        }
+        //     if (qaActivityCallback != null) {
+        //         new Handler(Looper.getMainLooper()).post(() -> {
+        //             qaActivityCallback.onMetricsUpdated(finalBatteryLevel, finalCpuUsage, -1);
+        //         });
+        //     }
+        //     displayCache = true;
+        //     return cachedAnswer;
+        // }
 
         boolean Adapt;
+        Mode mode;
         int modelToUse = QaActivity.modelToUse;
         Adapt = QaActivity.Adapt;
-        Model selectedModel;
-        if(!Adapt){
-            selectedModel = getModelByNumber(modelToUse);
-        }
-        else
-            selectedModel = selectModel();
+        mode = QaActivity.mode;
+        int selectedModel;
+        MLFQ_Model selectedMLFQModel;
 
-        if(selectedModel.type.equals("Cloud") && getTokenCount(content) > tokenThreshold)
-            selectedModel.tokenFactor = 2.0f;
-        else
-            selectedModel.tokenFactor = 1.0f;
+        if(!Adapt && mode == Mode.SINGLE){
+            selectedModel = modelToUse;
+            prevMode = Mode.SINGLE;
+        }
+        else{
+            if(mode == Mode.MLFQ){
+                selectedMLFQModel = selectModelMLFQ();
+
+                if(selectedMLFQModel.type.equals("Cloud") && getTokenCount(content) > tokenThreshold)
+                    selectedMLFQModel.tokenFactor = 2.0f;
+                else
+                    selectedMLFQModel.tokenFactor = 1.0f;
+
+                if(!firstQuestion && prevMLFQModel != selectedMLFQModel) {
+                    prevMLFQModel.executionCount = 0;
+                    prevMLFQModel.timesRejected = 0;
+                }
+
+                selectedModel = selectedMLFQModel.number;
+                prevMode = Mode.MLFQ;
+            }
+            else if(mode == Mode.NAIVE){
+                /*
+                    INSERT NAIVE LOGIC HERE
+                */
+                selectedModel = modelToUse;// REMOVE ONCE NAIVE LOGIC IS INSERTED
+                prevMode = Mode.NAIVE;
+            }
+            else if(mode == Mode.RR){
+                /*
+                    INSERT ROUND ROBIN LOGIC HERE
+                */
+                selectedModel = modelToUse;// REMOVE ONCE ROUND ROBIN LOGIC IS INSERTED
+                prevMode = Mode.RR;
+            }
+            else if(mode == Mode.ECOMLS){
+                /*
+                    INSERT ECOMLS LOGIC HERE
+                */
+                selectedModel = modelToUse;// REMOVE ONCE ECOMLS LOGIC IS INSERTED
+                prevMode = Mode.ECOMLS;
+            }
+        }
 
         String answer = "No answer found.";
 
-        if(!firstQuestion && prevModel != selectedModel) {
-            prevModel.executionCount = 0;
-            prevModel.timesRejected = 0;
-        }
-
-        Log.v("ModelSelection", "Using "+selectedModel.name+" (" + selectedModel.type + ")");
         QaActivity.beforeTime = System.currentTimeMillis();
-        if(selectedModel.number == GeminiNo)
+        if(selectedModel == GeminiNo)
             answer = callLlamaApi(question, content);  // Concatenate question and content
-        else if(selectedModel.number == OllamaNo)
+        else if(selectedModel == OllamaNo)
             answer = callOllamaApi(question, content);
-        else if(selectedModel.number == BertNo){
+        else if(selectedModel == BertNo){
             StringBuilder execStatus = new StringBuilder();
             List<QaAnswer> answers = predictBert(question, content, "DSP", execStatus);
             answer = answers.isEmpty() ? "No answer found." : answers.get(0).text;
@@ -482,18 +511,10 @@ public class QaClient {
         }
         QaActivity.afterTime = System.currentTimeMillis();
 
-        if(answer.equals("No answer found."))
-            selectedModel.timesRejected = 3;
-        selectedModel.executionCount++;
-        Log.d("Simult runs", selectedModel.name + " has run " + selectedModel.executionCount + " times simultaneously.");
-        batteryLevel = getBatteryLevel(context);
-        prevCpuUsage = getCpuUsage();
-        prevBatteryConsumption = prevCpuUsage * batteryLevel / 100.0f;
-
         // Ensure the variables are not modified after assignment.
         final int finalBatteryLevel = batteryLevel;
         final float finalCpuUsage = prevCpuUsage;
-        final int finalModelToUse = selectedModel.number;
+        final int finalModelToUse = selectedModel;
 
         if (qaActivityCallback != null) {
             new Handler(Looper.getMainLooper()).post(() -> {
@@ -501,27 +522,35 @@ public class QaClient {
             });
         }
 
-        prevModel = selectedModel;
-        runsSinceLastBoost++;
+        if(mode == Mode.MLFQ){
+            selectedMLFQModel.executionCount++;
+            Log.d("Simult runs", selectedMLFQModel.name + " has run " + selectedMLFQModel.executionCount + " times simultaneously.");
+            batteryLevel = getBatteryLevel(context);
+            prevCpuUsage = getCpuUsage();
+            prevBatteryConsumption = prevCpuUsage * batteryLevel / 100.0f;
+            
+            prevMLFQModel = selectedMLFQModel;
+            runsSinceLastBoost++;
 
-
-        if(runsSinceLastBoost > boostInterval){
-            Log.d("Priority boost", "Priority boost!");
-            while(!queues.midPriorityQueue.isEmpty()){
-                Model model = queues.midPriorityQueue.poll();
-                queues.highPriorityQueue.add(model);
-                model.executionCount = 0;
-                model.timesRejected = 0;
-            };
-            while(!queues.lowPriorityQueue.isEmpty()){
-                Model model = queues.lowPriorityQueue.poll();
-                queues.highPriorityQueue.add(model);
-                model.executionCount = 0;
-                model.timesRejected = 0;
+            if(runsSinceLastBoost > boostInterval){
+                Log.d("Priority boost", "Priority boost!");
+                while(!queues.midPriorityQueue.isEmpty()){
+                    MLFQ_Model model = queues.midPriorityQueue.poll();
+                    queues.highPriorityQueue.add(model);
+                    model.executionCount = 0;
+                    model.timesRejected = 0;
+                };
+                while(!queues.lowPriorityQueue.isEmpty()){
+                    MLFQ_Model model = queues.lowPriorityQueue.poll();
+                    queues.highPriorityQueue.add(model);
+                    model.executionCount = 0;
+                    model.timesRejected = 0;
+                }
+                runsSinceLastBoost = 0;
             }
-            runsSinceLastBoost = 0;
         }
-        answerCache.putAnswer(content, question, answer);
+
+        //answerCache.putAnswer(content, question, answer);
         return answer;
     }
 
