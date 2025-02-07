@@ -57,6 +57,8 @@ import android.util.Log;
 import android.os.BatteryManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.content.pm.PackageManager;
+import android.os.Build;
 
 
 import org.json.JSONArray;
@@ -140,6 +142,9 @@ public class QaClient {
     public static boolean displayCache = false;
 
     public static Mode prevMode = Mode.NAIVE;
+
+    public static boolean hasDSP = false;
+    public static boolean hasCPU = true; // Assume CPU is always available
 
     public QaClient(Context context) {
         this.context = context;
@@ -495,6 +500,14 @@ public class QaClient {
 
         String answer = "No answer found.";
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) { // NNAPI support from API 26+
+            PackageManager pm = context.getPackageManager();
+            hasDSP = pm.hasSystemFeature(PackageManager.FEATURE_NEURAL_NETWORKS);
+        }
+
+        // Conclude DSP or CPU runtime based on availability.
+        String runtime = hasDSP ? "DSP" : "CPU";
+
         QaActivity.beforeTime = System.currentTimeMillis();
         if(selectedModel == GeminiNo)
             answer = callLlamaApi(question, content);  // Concatenate question and content
@@ -502,11 +515,11 @@ public class QaClient {
             answer = callOllamaApi(question, content);
         else if(selectedModel == BertNo){
             StringBuilder execStatus = new StringBuilder();
-            List<QaAnswer> answers = predictBert(question, content, "DSP", execStatus);
+            List<QaAnswer> answers = predictBert(question, content, runtime, execStatus);
             answer = answers.isEmpty() ? "No answer found." : answers.get(0).text;
         } else{
             StringBuilder execStatus = new StringBuilder();
-            List<QaAnswer> answers = predict(question, content, "DSP", execStatus);
+            List<QaAnswer> answers = predict(question, content, runtime, execStatus);
             answer = answers.isEmpty() ? "No answer found." : answers.get(0).text;
         }
         QaActivity.afterTime = System.currentTimeMillis();
