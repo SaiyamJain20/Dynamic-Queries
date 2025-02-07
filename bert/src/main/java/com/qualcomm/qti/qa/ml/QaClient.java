@@ -135,13 +135,85 @@ public class QaClient {
     private static int agingFactor = 3;
     private static int runsSinceLastBoost = 0;
     private static int boostInterval = 5;
+
     private static int tokenThreshold = 300;
+    private static int tokenThreshold_LOW = 100;
+    private static float BATTERY_THRESHOLD_HIGH = 75f;
+    private static float BATTERY_THRESHOLD_LOW = 25f;
+    private static float CPU_THRESHOLD_HIGH = 80.0f;
+    private static float TEMPERATURE_THRESHOLD = 33.0f; 
 
     private final QaAnswerCache answerCache;
     private MLFQ queues;
     public static boolean displayCache = false;
 
     public static Mode prevMode = Mode.NAIVE;
+    // ---------------------- Round Robin ----------------------
+    private List<Integer> rrQueue = new ArrayList<>(); // Stores available models
+    private int rrIndex = 0; // Tracks the current model index
+
+    private List<Integer> getAvailableModels() {
+        List<Integer> models = new ArrayList<>();
+        models.add(ElectraNo);
+        models.add(BertNo);
+        models.add(OllamaNo);
+        models.add(GeminiNo);
+        return models;
+    }
+
+    private int getNextModelRR() {
+        if (rrQueue.isEmpty()) {
+            initializeRRQueue();
+        }
+        int selectedModel = rrQueue.get(rrIndex);
+        rrIndex = (rrIndex + 1) % rrQueue.size();
+        return selectedModel;
+    }
+
+    private void initializeRRQueue() {
+        rrQueue = getAvailableModels();
+        rrIndex = 0;
+    }
+
+// ---------------------- Naive ----------------------
+    private int selectModelNaive(String content) {
+        int batteryLevel = getBatteryLevel(context);
+        float cpuUsage = getCpuUsage();
+        float temperature = getBatteryTemperature();
+        int tokenCount = getTokenCount(content);
+
+        boolean isLowBattery = batteryLevel <= BATTERY_THRESHOLD_LOW;
+        boolean isHighBattery = batteryLevel >= BATTERY_THRESHOLD_HIGH;
+        boolean isHighCPU = cpuUsage >= CPU_THRESHOLD_HIGH;
+        boolean isHighTemp = temperature >= TEMPERATURE_THRESHOLD;
+        boolean isLongInput = tokenCount >= tokenThreshold;
+        boolean isShortInput = tokenCount <= tokenThreshold_LOW;
+
+        if (isHighTemp || (isLowBattery && isHighCPU)) {
+            return ElectraNo;
+        }
+        else if (isLongInput) {
+            if (isHighBattery && !isHighCPU) {
+                return GeminiNo;
+            } else {
+                return BertNo;
+            }
+        }
+        else if (isHighBattery) {
+            if (isHighCPU) {
+                return BertNo;
+            } else {
+                return OllamaNo;
+            }
+        }
+        else if (!isLowBattery && !isHighBattery && !isHighCPU) {
+            return BertNo;
+        }
+        else{
+            return ElectraNo;
+        }
+    }
+
 
     public static boolean hasDSP = false;
     public static boolean hasCPU = true; // Assume CPU is always available
@@ -475,20 +547,14 @@ public class QaClient {
                 selectedModel = selectedMLFQModel.number;
                 prevMode = Mode.MLFQ;
             }
-            else if(mode == Mode.NAIVE){
-                /*
-                    INSERT NAIVE LOGIC HERE
-                */
-                selectedModel = modelToUse;// REMOVE ONCE NAIVE LOGIC IS INSERTED
+                else if(mode == Mode.NAIVE){
+                selectedModel = selectModelNaive(content);// REMOVE ONCE NAIVE LOGIC IS INSERTED
                 prevMode = Mode.NAIVE;
             }
-            else if(mode == Mode.RR){
-                /*
-                    INSERT ROUND ROBIN LOGIC HERE
-                */
-                selectedModel = modelToUse;// REMOVE ONCE ROUND ROBIN LOGIC IS INSERTED
+            else if(mode == Mode.RR) {
+                selectedModel = getNextModelRR();
                 prevMode = Mode.RR;
-            }
+             }
             else if(mode == Mode.ECOMLS){
                 /*
                     INSERT ECOMLS LOGIC HERE
