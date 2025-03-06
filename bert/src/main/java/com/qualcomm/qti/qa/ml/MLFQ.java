@@ -15,7 +15,7 @@ public class MLFQ {
     private static final int OllamaNo = 2;
     private static final int GeminiNo = 3;
 
-    public class Model {
+    public class MLFQ_Model {
         int number;
         String name;
         String type;
@@ -26,7 +26,7 @@ public class MLFQ {
         float tokenFactor;
         int timesRejected = 0;
 
-        Model(int number, String name, String type, int priority, float eFactor, float tokenFactor) {
+        MLFQ_Model(int number, String name, String type, int priority, float eFactor, float tokenFactor) {
             this.number = number;
             this.name = name;
             this.type = type;
@@ -40,9 +40,9 @@ public class MLFQ {
         }
     }
 
-    public Queue<Model> highPriorityQueue;
-    public Queue<Model> midPriorityQueue;
-    public Queue<Model> lowPriorityQueue;
+    public Queue<MLFQ_Model> highPriorityQueue;
+    public Queue<MLFQ_Model> midPriorityQueue;
+    public Queue<MLFQ_Model> lowPriorityQueue;
 
     public double emaScore;
 
@@ -51,10 +51,10 @@ public class MLFQ {
         midPriorityQueue = new LinkedList<>();
         lowPriorityQueue = new LinkedList<>();
 
-        midPriorityQueue.add(new Model(ElectraNo, "Electra", "Local", PRIORITY_MID, 1.5f, 1.0f));
-        midPriorityQueue.add(new Model(BertNo, "Bert", "Local", PRIORITY_MID, 1.5f, 1.0f));
-        midPriorityQueue.add(new Model(OllamaNo, "Ollama", "Cloud", PRIORITY_MID, 1.0f, 1.0f));
-        midPriorityQueue.add(new Model(GeminiNo, "Gemini", "Cloud", PRIORITY_MID, 0.75f, 1.0f));
+        midPriorityQueue.add(new MLFQ_Model(ElectraNo, "Electra", "Local", PRIORITY_MID, 1.5f, 1.0f));
+        midPriorityQueue.add(new MLFQ_Model(BertNo, "Bert", "Local", PRIORITY_MID, 1.5f, 1.0f));
+        midPriorityQueue.add(new MLFQ_Model(OllamaNo, "Ollama", "Cloud", PRIORITY_MID, 1.0f, 1.0f));
+        midPriorityQueue.add(new MLFQ_Model(GeminiNo, "Gemini", "Cloud", PRIORITY_MID, 0.75f, 1.0f));
 
         emaScore = 0.5;
     }

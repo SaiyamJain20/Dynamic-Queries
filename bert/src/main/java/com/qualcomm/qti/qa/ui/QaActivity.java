@@ -129,7 +129,15 @@ public class QaActivity extends AppCompatActivity implements QaClient.QaActivity
         intent.putExtra(DATASET_POSITION_KEY, datasetPosition);
         return intent;
     }
+    public enum Mode {
+        SINGLE,
+        NAIVE,
+        RR,
+        MLFQ,
+        ECOMLS,
+    }
 
+    public static Mode mode = Mode.NAIVE;
     public static boolean Adapt = true;
     public static int modelToUse = 0;
     public static boolean firstQuestion = true;
@@ -193,7 +201,7 @@ public class QaActivity extends AppCompatActivity implements QaClient.QaActivity
 
         //=========================== Runtime Selection ==============================//
         Spinner dropdown = findViewById(R.id.runtime_spinner);
-        String[] items = new String[]{"Adapt", "Electra", "Bert", "Ollama", "Gemini"};
+        String[] items = new String[]{"Naive", "RR", "MLFQ", "EcoMLS","Electra", "Bert", "Ollama", "Gemini"};
 
         ArrayAdapter<String> ddadapter = new ArrayAdapter<String>(QaActivity.this,
                 android.R.layout.simple_spinner_item, items);
@@ -207,11 +215,25 @@ public class QaActivity extends AppCompatActivity implements QaClient.QaActivity
                                                int arg2, long arg3) {
                         String runtime = dropdown.getSelectedItem().toString();
                         Log.i("SPINNER: Dropdown selected is  ", runtime);
-                        if(runtime.equals("Adapt")){
+                        if(runtime.equals("Naive")){
+                            mode = Mode.NAIVE;
+                            Adapt = true;
+                        }
+                        else if(runtime.equals("RR")){
+                            mode = Mode.RR;
+                            Adapt = true;
+                        }
+                        else if(runtime.equals("MLFQ")){
+                            mode = Mode.MLFQ;
+                            Adapt = true;
+                        }
+                        else if(runtime.equals("EcoMLS")){
+                            mode = Mode.ECOMLS;
                             Adapt = true;
                         }
                         else{
                             Adapt = false;
+                            mode = Mode.SINGLE;
                             if(runtime.equals("Electra"))
                                 modelToUse = 0;
                             else if(runtime.equals("Bert"))
@@ -226,7 +248,8 @@ public class QaActivity extends AppCompatActivity implements QaClient.QaActivity
                     @Override
                     public void onNothingSelected(AdapterView<?> arg0) {
                         // TODO Auto-generated method stub
-                        String runtime = "Adapt";
+                        String runtime = "Naive";
+                        mode = Mode.NAIVE;
                         Adapt = true;
                     }
                 });
