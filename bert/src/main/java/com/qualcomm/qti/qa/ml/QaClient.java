@@ -148,6 +148,79 @@ public class QaClient {
     public static boolean displayCache = false;
 
     public static Mode prevMode = Mode.NAIVE;
+// ---------------------- EcoMLS ----------------------
+    private class EcoMLS_Model {
+        int number;
+        String name;
+        String type;
+        float energyConsumption;
+        float confidenceScore;
+        float executionTime;
+        float emaScore;
+        int executionCount = 0;
+        
+        EcoMLS_Model(int number, String name, String type, float energyConsumption, float confidenceScore) {
+            this.number = number;
+            this.name = name;
+            this.type = type;
+            this.energyConsumption = energyConsumption;
+            this.confidenceScore = confidenceScore;
+            this.executionTime = 0;
+            this.emaScore = 0.5f; // Initial value
+        }
+        
+        void updatePerformance(float newEnergy, float newConfidence, float newTime) {
+            this.energyConsumption = (this.energyConsumption * executionCount + newEnergy) / (executionCount + 1);
+            this.confidenceScore = (this.confidenceScore * executionCount + newConfidence) / (executionCount + 1);
+            this.executionTime = (this.executionTime * executionCount + newTime) / (executionCount + 1);
+            this.executionCount++;
+        }
+    }
+
+    private List<EcoMLS_Model> ecoModels = new ArrayList<>();
+    
+    public void initializeEcoMLS() {
+        if (ecoModels.isEmpty()) {
+            ecoModels.add(new EcoMLS_Model(0, "Electra", "Local", 1.5f, 0.8f));
+            ecoModels.add(new EcoMLS_Model(1, "Bert", "Local", 1.8f, 0.85f));
+            ecoModels.add(new EcoMLS_Model(2, "Ollama", "Cloud", 2.0f, 0.9f));
+            ecoModels.add(new EcoMLS_Model(3, "Gemini", "Cloud", 2.2f, 0.95f));
+        }
+    }
+    
+    private EcoMLS_Model selectModelEcoMLS() {
+        updatePerformanceMatrix();
+        updateRuntimeRepository();
+        
+        double epsilon = 0.1; // Probability of exploration
+        Random random = new Random();
+        
+        if (ecoModels.isEmpty()) {
+            return null; // No models available
+        }
+        
+        if (random.nextDouble() < epsilon) {
+            return ecoModels.get(random.nextInt(ecoModels.size()));
+        }
+        
+        EcoMLS_Model bestModel = ecoModels.get(0);
+        double minScore = Double.MAX_VALUE;
+        
+        int batteryLevel = getBatteryLevel(context);
+        float temperature = getBatteryTemperature();
+        float cpuUsage = getCpuUsage();
+        
+        for (EcoMLS_Model model : ecoModels) {
+            double score = calculateScore(batteryLevel, model.energyConsumption, temperature, cpuUsage, 1.0f, model.confidenceScore, 1.0f);
+            if (score < minScore) {
+                minScore = score;
+                bestModel = model;
+            }
+        }
+        
+        return bestModel;
+    }
+
     // ---------------------- Round Robin ----------------------
     private List<Integer> rrQueue = new ArrayList<>(); // Stores available models
     private int rrIndex = 0; // Tracks the current model index
@@ -160,6 +233,7 @@ public class QaClient {
         models.add(GeminiNo);
         return models;
     }
+
 
     private int getNextModelRR() {
         if (rrQueue.isEmpty()) {
@@ -554,10 +628,8 @@ public class QaClient {
                 prevMode = Mode.RR;
              }
             else if(mode == Mode.ECOMLS){
-                /*
-                    INSERT ECOMLS LOGIC HERE
-                */
-                selectedModel = modelToUse;// REMOVE ONCE ECOMLS LOGIC IS INSERTED
+                selectedEcoModel = selectModelEcoMLS();
+                selectedModel = (selectedEcoModel != null) ? selectedEcoModel.number : QaActivity.modelToUse;
                 prevMode = Mode.ECOMLS;
             }
         }
