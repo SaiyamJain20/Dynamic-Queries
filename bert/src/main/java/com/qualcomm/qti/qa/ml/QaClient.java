@@ -367,8 +367,6 @@ public class QaClient {
             }
         }
 
-
-
         // Convert logits to answers using the getBestAnswers method
         Log.v(TAG, "Convert logits to answers...");
         List<QaAnswer> customAnswers = getBestAnswers(startLogits[0], endLogits[0], feature);
@@ -426,22 +424,22 @@ public class QaClient {
         }
 
         QaActivity.beforeTime = System.currentTimeMillis();
-        if (answerCache.hasAnswer(content, question)) {
-            String cachedAnswer = answerCache.getAnswer(content, question);
-            QaActivity.firstQuestion = true;
-            Log.d("QaClient", "Cache hit for question: " + question);
-            QaActivity.afterTime = System.currentTimeMillis();
-            final int finalBatteryLevel = batteryLevel;
-            final float finalCpuUsage = prevCpuUsage;
+        // if (answerCache.hasAnswer(content, question)) {
+        //     String cachedAnswer = answerCache.getAnswer(content, question);
+        //     QaActivity.firstQuestion = true;
+        //     Log.d("QaClient", "Cache hit for question: " + question);
+        //     QaActivity.afterTime = System.currentTimeMillis();
+        //     final int finalBatteryLevel = batteryLevel;
+        //     final float finalCpuUsage = prevCpuUsage;
 
-            if (qaActivityCallback != null) {
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    qaActivityCallback.onMetricsUpdated(finalBatteryLevel, finalCpuUsage, -1);
-                });
-            }
-            displayCache = true;
-            return cachedAnswer;
-        }
+        //     if (qaActivityCallback != null) {
+        //         new Handler(Looper.getMainLooper()).post(() -> {
+        //             qaActivityCallback.onMetricsUpdated(finalBatteryLevel, finalCpuUsage, -1);
+        //         });
+        //     }
+        //     displayCache = true;
+        //     return cachedAnswer;
+        // }
 
         boolean Adapt;
         int modelToUse = QaActivity.modelToUse;
@@ -458,7 +456,7 @@ public class QaClient {
         else
             selectedModel.tokenFactor = 1.0f;
 
-        String answer = "No answer found.";
+        String answer = "No answer found."predictBert;
 
         if(!firstQuestion && prevModel != selectedModel) {
             prevModel.executionCount = 0;
