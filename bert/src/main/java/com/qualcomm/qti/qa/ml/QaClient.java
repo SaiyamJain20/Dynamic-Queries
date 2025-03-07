@@ -148,6 +148,8 @@ public class QaClient {
     public static boolean displayCache = false;
 
     public static Mode prevMode = Mode.NAIVE;
+
+    private LocalModel localmodel;
 // ---------------------- EcoMLS ----------------------
     private class EcoMLS_Model {
         int number;
@@ -391,6 +393,7 @@ public class QaClient {
                 assetManager = context.getAssets();
                 Log.i(TAG, "onCreate: Initializing SNPE ...");
                 uiLogger = initSNPE(assetManager);
+                localmodel = new LocalModel(getAssets());
                 doSnpeInit = false;
             }
         } catch (Exception ex) {
@@ -634,11 +637,11 @@ public class QaClient {
             }
         }
 
-        String answer = "No answer found."predictBert;
+        String answer = "No answer found.";
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) { // NNAPI support from API 26+
             PackageManager pm = context.getPackageManager();
-            hasDSP = pm.hasSystemFeature(PackageManager.FEATURE_NEURAL_NETWORKS);
+            hasDSP = pm.hasSystemFeature("android.hardware.neuralnetworks");
         }
 
         // Conclude DSP or CPU runtime based on availability.
@@ -650,9 +653,10 @@ public class QaClient {
         else if(selectedModel == OllamaNo)
             answer = callOllamaApi(question, content);
         else if(selectedModel == BertNo){
-            StringBuilder execStatus = new StringBuilder();
-            List<QaAnswer> answers = predictBert(question, content, runtime, execStatus);
-            answer = answers.isEmpty() ? "No answer found." : answers.get(0).text;
+            answer = localmodel.getRecommendation(question, content);
+            // StringBuilder execStatus = new StringBuilder();
+            // List<QaAnswer> answers = predictBert(question, content, runtime, execStatus);
+            // answer = answers.isEmpty() ? "No answer found." : answers.get(0).text;
         } else{
             StringBuilder execStatus = new StringBuilder();
             List<QaAnswer> answers = predict(question, content, runtime, execStatus);
