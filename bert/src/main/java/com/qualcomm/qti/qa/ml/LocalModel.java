@@ -30,13 +30,31 @@ public class LocalModel {
     private static final int MAX_SPAN_LENGTH = 30;
 
     public LocalModel(AssetManager assets) {
+        // this.assetManager = assets;
+        // // Load TFLite model
+        // interpreter = new Interpreter(loadModelFile("mobilebert.tflite"));
+        // // Load vocabulary and create reverse mapping
+        // vocab = loadVocab(assetManager, "vocab2.txt");
+        // Log.i("LocalModel", "Loaded vocabulary with " + vocab.size() + " tokens");
+        // if (vocab.size() != 30522) {
+        //     Log.w("LocalModel", "Warning: DistilBERT typically has 30522 tokens, but loaded " + vocab.size());
+        // }   
+        // idToToken = createIdToTokenMap(vocab);
+        // // Initialize FeatureConverter with the same parameters as in your Java code
+        // featureConverter = new FeatureConverter(vocab, true, MAX_QUERY_LEN, MAX_SEQ_LEN);
+
+
         this.assetManager = assets;
         // Load TFLite model
-        interpreter = new Interpreter(loadModelFile("mobilebert.tflite"));
-        // Load vocabulary and create reverse mapping
-        vocab = loadVocab(assetManager, "vocab2.txt");
+        interpreter = new Interpreter(loadModelFile("distilbert-squad-384.tflite"));
+        // Load the DistilBERT vocabulary
+        vocab = loadVocab(assetManager, "distilbert_vocab.txt");
+        Log.i("LocalModel", "Loaded vocabulary with " + vocab.size() + " tokens");
+        if (vocab.size() != 30522) {
+            Log.w("LocalModel", "Warning: DistilBERT typically has 30522 tokens, but loaded " + vocab.size());
+        }
         idToToken = createIdToTokenMap(vocab);
-        // Initialize FeatureConverter with the same parameters as in your Java code
+        // Initialize FeatureConverter with the same parameters
         featureConverter = new FeatureConverter(vocab, true, MAX_QUERY_LEN, MAX_SEQ_LEN);
     }
 
@@ -119,7 +137,9 @@ public class LocalModel {
 
         // Run inference.
         interpreter.runForMultipleInputsOutputs(
-                new Object[]{inputIds, inputMask, segmentIds}, outputMap);
+            new Object[]{inputMask, segmentIds, inputIds}, 
+            new Object[]{startLogits, endLogits}
+        );
 
         // Select the best span from the logits.
         int[] bestSpan = selectBestSpan(startLogits[0], endLogits[0]);
